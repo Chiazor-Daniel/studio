@@ -5,6 +5,8 @@ import { addUserToQueue, callNextUser, getQueueState, getUserStatus, removeUser 
 import type { Department, QueueState, UserStatus } from '@/lib/types';
 import { estimateWaitTime } from '@/ai/flows/estimate-wait-time';
 import { revalidatePath } from 'next/cache';
+import { sendQueueConfirmationEmail } from '@/lib/email';
+import { headers } from 'next/headers';
 
 const joinQueueSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -43,6 +45,8 @@ export async function joinQueueAction(
   
   try {
     const { department, counter } = validatedFields.data;
+    // This is less efficient with a DB, but good for the AI context.
+    // A better approach would be to get queue length directly from DB.
     const currentQueueState = getQueueState();
     const queueLength = currentQueueState[department].counters[counter].queue.length;
 
@@ -53,15 +57,23 @@ export async function joinQueueAction(
         historicalData: `Average service time is 5 minutes per person. Peak hours are from 12 PM to 2 PM, where wait times can increase by 50%. The 'New Accounts' department is generally faster. Counter-specific data might vary.`,
     });
 
-    const newUser = addUserToQueue({ ...validatedFields.data });
+    const newUser = addUserToQueue({ 
+        ...validatedFields.data,
+        estimatedWaitTime: aiEstimation.estimatedWaitTime,
+        confidence: aiEstimation.confidence,
+    });
     
-    newUser.estimatedWaitTime = aiEstimation.estimatedWaitTime;
-    newUser.confidence = aiEstimation.confidence;
-    
+    // Revalidate admin path to show new user
     revalidatePath('/admin');
     
+    // Send email notification
+    const host = headers().get('host') || 'localhost:9002';
+    const protocol = host.startsWith('localhost') ? 'http' : 'https';
+    const statusLink = `${protocol}://${host}/queue/${newUser.id}`;
+    await sendQueueConfirmationEmail(newUser, statusLink);
+    
     return {
-      message: `Successfully joined the queue! Your number is ${newUser.queueNumber}.`,
+      message: `Successfully joined the queue! Your number is ${newUser.queueNumber}. A confirmation has been sent to your email.`,
       success: true,
       userId: newUser.id,
     };
