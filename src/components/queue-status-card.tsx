@@ -2,45 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { getQueueStatusAction } from '@/app/actions';
 import type { UserStatus } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, User, Users, Hash, AlertTriangle, Building } from 'lucide-react';
+import { Clock, Hash, AlertTriangle, User } from 'lucide-react';
+import { useQueue } from '@/hooks/use-queue';
 
 export function QueueStatusCard({ userId }: { userId: string }) {
-  const [status, setStatus] = useState<UserStatus | null | 'not-found'>(null);
+  const { getUserStatus } = useQueue();
+  const [status, setStatus] = useState<UserStatus | 'not-found' | null>(null);
 
   useEffect(() => {
-    let isCancelled = false;
-
-    const fetchStatus = async () => {
-      try {
-        const newStatus = await getQueueStatusAction(userId);
-        if (isCancelled) return;
-
-        if (newStatus) {
-            setStatus(newStatus);
-        } else {
-             // If user is no longer found in queue, update status.
-             // This handles cases where user was served or removed.
-            setStatus('not-found');
-        }
-      } catch (error) {
-        console.error('Failed to fetch queue status:', error);
-        if (!isCancelled) {
-            setStatus('not-found'); // Set to not-found on error as well
-        }
-      }
+    const fetchStatus = () => {
+      const newStatus = getUserStatus(userId);
+      setStatus(newStatus || 'not-found');
     };
 
     fetchStatus(); // Initial fetch
-    const interval = setInterval(fetchStatus, 5000); // Poll every 5 seconds
+    
+    // Poll for changes, as another tab (e.g., admin) could update the state
+    const interval = setInterval(fetchStatus, 2000); 
 
-    return () => {
-      isCancelled = true;
-      clearInterval(interval);
-    };
-  }, [userId]); // Dependency array only includes userId
+    return () => clearInterval(interval);
+  }, [userId, getUserStatus]);
 
   if (status === null) {
     return (
@@ -80,7 +63,7 @@ export function QueueStatusCard({ userId }: { userId: string }) {
                   </p>
               </CardContent>
           </Card>
-      )
+      );
   }
 
   return (

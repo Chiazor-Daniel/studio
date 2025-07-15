@@ -1,30 +1,19 @@
-
 'use client';
 
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useRef } from 'react';
-import { joinQueueAction, type JoinQueueFormState } from '@/app/actions';
+import { useState, useRef, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
 import { Building, User, Mail, Users, ArrowRight, Loader2, PartyPopper, Clock, Ticket } from 'lucide-react';
-import type { Department } from '@/lib/types';
+import type { Department, JoinQueueFormState } from '@/lib/types';
 import { departments, counters } from '@/lib/types';
+import { useQueue } from '@/hooks/use-queue';
 
-const initialState: JoinQueueFormState = {
-  message: '',
-  errors: {},
-  success: false,
-};
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={pending}>
       {pending ? (
@@ -43,46 +32,82 @@ function SubmitButton() {
 }
 
 export function JoinQueueForm() {
-  const [state, formAction] = useActionState(joinQueueAction, initialState);
+  const { addUserToQueue } = useQueue();
   const router = useRouter();
-  const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
   const [selectedDepartment, setSelectedDepartment] = useState<Department | ''>('');
   const [availableCounters, setAvailableCounters] = useState<string[]>([]);
-  const [departmentKey, setDepartmentKey] = useState(0);
-  const [counterKey, setCounterKey] = useState(0);
+  
+  // State for the modal
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [modalData, setModalData] = useState<JoinQueueFormState | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-
-  useEffect(() => {
-    if (state.success && state.userId) {
-      setShowSuccessModal(true);
-      formRef.current?.reset();
-      setSelectedDepartment('');
-      setAvailableCounters([]);
-      setDepartmentKey(prev => prev + 1);
-      setCounterKey(prev => prev + 1);
-    } else if (!state.success && state.message) {
-      toast({
-        title: 'Error',
-        description: state.message,
-        variant: 'destructive',
-      });
-    }
-  }, [state, toast]);
+  // State for form validation
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleDepartmentChange = (value: string) => {
     const department = value as Department;
     setSelectedDepartment(department);
     setAvailableCounters(counters[department] || []);
-    setCounterKey(prev => prev + 1); // Reset counter select
+    if (errors.department) setErrors(e => ({...e, department: ''}));
+    // Reset counter value visually if needed, though not strictly necessary with controlled components
+  };
+
+  const validateForm = (formData: FormData) => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.get('department')) newErrors.department = 'Please select a department.';
+    if (!formData.get('counter')) newErrors.counter = 'Please select a counter.';
+    if ((formData.get('name') as string).length < 2) newErrors.name = 'Name must be at least 2 characters.';
+    if (!/^\S+@\S+\.\S+$/.test(formData.get('contact') as string)) newErrors.contact = 'Please enter a valid email.';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    
+    const formData = new FormData(event.currentTarget);
+    if (!validateForm(formData)) {
+      setIsSubmitting(false);
+      return;
+    }
+    
+    const newUserInput = {
+      name: formData.get('name') as string,
+      contact: formData.get('contact') as string,
+      department: formData.get('department') as Department,
+      counter: formData.get('counter') as string,
+    };
+
+    // Simulate AI estimation
+    const estimatedWaitTime = Math.floor(Math.random() * 15) + 5;
+    const confidence = ['low', 'medium', 'high'][Math.floor(Math.random() * 3)];
+    
+    const newUser = addUserToQueue({ ...newUserInput, estimatedWaitTime, confidence });
+    
+    setModalData({
+      success: true,
+      message: 'Success!',
+      userId: newUser.id,
+      queueNumber: newUser.queueNumber,
+      estimatedWaitTime: newUser.estimatedWaitTime,
+    });
+    
+    setShowSuccessModal(true);
+    formRef.current?.reset();
+    setSelectedDepartment('');
+    setAvailableCounters([]);
+    setIsSubmitting(false);
   };
 
   const handleGoToStatus = () => {
-    if (state.userId) {
+    if (modalData?.userId) {
       setShowSuccessModal(false);
-      router.push(`/queue/${state.userId}`);
+      router.push(`/queue/${modalData.userId}`);
     }
   }
 
@@ -98,10 +123,10 @@ export function JoinQueueForm() {
         <CardDescription className="text-center">Select a service and enter your details to get your spot.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form ref={formRef} action={formAction} className="space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6" noValidate>
           <div className="space-y-2">
             <Label htmlFor="department"><Building className="inline-block mr-2 h-4 w-4" />Department</Label>
-            <Select key={departmentKey} name="department" onValueChange={handleDepartmentChange} required>
+            <Select name="department" onValueChange={handleDepartmentChange} required>
               <SelectTrigger id="department" className="w-full">
                 <SelectValue placeholder="Select a department" />
               </SelectTrigger>
@@ -111,12 +136,12 @@ export function JoinQueueForm() {
                 ))}
               </SelectContent>
             </Select>
-            {state.errors?.department && <p className="text-sm font-medium text-destructive">{state.errors.department[0]}</p>}
+            {errors.department && <p className="text-sm font-medium text-destructive">{errors.department}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="counter"><Users className="inline-block mr-2 h-4 w-4" />Counter</Label>
-            <Select key={counterKey} name="counter" disabled={!selectedDepartment} required>
+            <Select name="counter" disabled={!selectedDepartment} required onValueChange={() => {if (errors.counter) setErrors(e => ({...e, counter: ''}))}}>
               <SelectTrigger id="counter" className="w-full">
                 <SelectValue placeholder="Select a counter" />
               </SelectTrigger>
@@ -126,22 +151,22 @@ export function JoinQueueForm() {
                 ))}
               </SelectContent>
             </Select>
-            {state.errors?.counter && <p className="text-sm font-medium text-destructive">{state.errors.counter[0]}</p>}
+            {errors.counter && <p className="text-sm font-medium text-destructive">{errors.counter}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="name"><User className="inline-block mr-2 h-4 w-4" />Full Name</Label>
-            <Input id="name" name="name" placeholder="John Doe" required />
-            {state.errors?.name && <p className="text-sm font-medium text-destructive">{state.errors.name[0]}</p>}
+            <Input id="name" name="name" placeholder="John Doe" required onChange={() => {if (errors.name) setErrors(e => ({...e, name: ''}))}} />
+            {errors.name && <p className="text-sm font-medium text-destructive">{errors.name}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="contact"><Mail className="inline-block mr-2 h-4 w-4" />Email Address</Label>
-            <Input id="contact" name="contact" type="email" placeholder="you@example.com" required />
-             {state.errors?.contact && <p className="text-sm font-medium text-destructive">{state.errors.contact[0]}</p>}
+            <Input id="contact" name="contact" type="email" placeholder="you@example.com" required onChange={() => {if (errors.contact) setErrors(e => ({...e, contact: ''}))}}/>
+             {errors.contact && <p className="text-sm font-medium text-destructive">{errors.contact}</p>}
           </div>
 
-          <SubmitButton />
+          <SubmitButton pending={isSubmitting} />
         </form>
       </CardContent>
     </Card>
@@ -154,18 +179,18 @@ export function JoinQueueForm() {
                 </div>
                 <DialogTitle className="text-center text-2xl font-headline">You're in the queue!</DialogTitle>
                 <DialogDescription className="text-center">
-                    A confirmation has been sent to your email. You can check your status using the button below.
+                    You can check your status using the button below. A confirmation has been logged to the console.
                 </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
                  <div className="flex justify-around text-center">
                     <div>
                         <p className="text-sm text-muted-foreground font-medium flex items-center justify-center gap-1"><Ticket /> Your Number</p>
-                        <p className="text-4xl font-bold">{state.queueNumber}</p>
+                        <p className="text-4xl font-bold">{modalData?.queueNumber}</p>
                     </div>
                      <div>
                         <p className="text-sm text-muted-foreground font-medium flex items-center justify-center gap-1"><Clock /> Est. Wait</p>
-                        <p className="text-4xl font-bold">~{state.estimatedWaitTime}<span className="text-xl">min</span></p>
+                        <p className="text-4xl font-bold">~{modalData?.estimatedWaitTime}<span className="text-xl">min</span></p>
                     </div>
                 </div>
             </div>

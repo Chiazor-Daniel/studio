@@ -5,48 +5,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import type { Department, QueueState } from '@/lib/types';
+import type { Department } from '@/lib/types';
 import { departments, counters as allCounters } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
-import { callNextCustomerAction, removeCustomerAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserX, ChevronRight } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { useQueue } from '@/hooks/use-queue';
 
-type AdminDashboardProps = {
-  initialState: QueueState;
-};
-
-export function AdminDashboard({ initialState }: AdminDashboardProps) {
+export function AdminDashboard() {
+  const { queueState, callNextUser, removeUser } = useQueue();
   const [isSubmitting, setIsSubmitting] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
+
+  if (!queueState) {
+    return <div className="text-center p-8">Loading queue state...</div>;
+  }
 
   const handleCallNext = async (department: Department, counter: string) => {
     const key = `call-${department}-${counter}`;
     setIsSubmitting(prev => ({ ...prev, [key]: true }));
-    const result = await callNextCustomerAction(department, counter);
-    if (result.success) {
-      toast({ title: 'Success', description: `Called next customer for ${counter}.` });
-    } else {
-      toast({ title: 'Error', description: 'Failed to call next customer.', variant: 'destructive' });
-    }
+    callNextUser(department, counter);
+    toast({ title: 'Success', description: `Called next customer for ${counter}.` });
     setIsSubmitting(prev => ({ ...prev, [key]: false }));
   };
   
   const handleRemove = async (userId: string, userName: string) => {
     const key = `remove-${userId}`;
     setIsSubmitting(prev => ({ ...prev, [key]: true }));
-    const result = await removeCustomerAction(userId);
-    if (result.success) {
-      toast({ title: 'Success', description: `Removed ${userName} from the queue.` });
-    } else {
-      toast({ title: 'Error', description: 'Failed to remove customer.', variant: 'destructive' });
-    }
+    removeUser(userId);
+    toast({ title: 'Success', description: `Removed ${userName} from the queue.` });
      setIsSubmitting(prev => ({ ...prev, [key]: false }));
   }
 
   const getTotalQueueLength = (dept: Department) => {
-    return Object.values(initialState[dept].counters).reduce((sum, counter) => sum + counter.queue.length, 0);
+    if (!queueState || !queueState[dept]) return 0;
+    return Object.values(queueState[dept].counters).reduce((sum, counter) => sum + counter.queue.length, 0);
   }
 
   return (
@@ -62,7 +56,7 @@ export function AdminDashboard({ initialState }: AdminDashboardProps) {
         <TabsContent key={dept} value={dept}>
           <Accordion type="multiple" defaultValue={allCounters[dept]} className="w-full">
             {allCounters[dept].map((counterName) => {
-              const counterState = initialState[dept].counters[counterName];
+              const counterState = queueState[dept].counters[counterName];
               if (!counterState) return null;
               
               const queue = counterState.queue;

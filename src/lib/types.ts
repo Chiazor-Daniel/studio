@@ -15,14 +15,14 @@ export type QueueUser = {
   department: Department;
   counter: string;
   queueNumber: number;
-  joinedAt: Date;
+  joinedAt: Date | string; // Allow string for serialization
   estimatedWaitTime?: number;
   confidence?: string;
 };
 
 export type ServingInfo = {
   user: QueueUser | null;
-  startedAt: Date | null;
+  startedAt: Date | string | null; // Allow string for serialization
 };
 
 export type CounterState = {
@@ -47,4 +47,14 @@ export type UserStatus = {
   currentlyServing: number | null;
   totalInQueue: number;
   userName: string;
+};
+
+// This type is for the success modal after joining the queue
+export type JoinQueueFormState = {
+  message: string;
+  errors?: Record<string, string[]>;
+  success: boolean;
+  userId?: string;
+  queueNumber?: number;
+  estimatedWaitTime?: number;
 };
