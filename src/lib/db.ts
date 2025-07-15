@@ -4,13 +4,17 @@ import fs from 'fs';
 import type { Department } from './types';
 import { departments, counters } from './types';
 
-const DB_DIR = path.join(process.cwd(), 'database');
+// Vercel has a read-only filesystem, except for the /tmp directory.
+// This means the database will be ephemeral and reset on each deployment.
+const DB_DIR = process.env.VERCEL ? '/tmp' : path.join(process.cwd(), 'database');
 const DB_PATH = path.join(DB_DIR, 'queue.db');
 
-// Ensure the database directory exists
-fs.mkdirSync(DB_DIR, { recursive: true });
+// Ensure the database directory exists if it's not on Vercel
+if (!process.env.VERCEL) {
+  fs.mkdirSync(DB_DIR, { recursive: true });
+}
 
-export const db = new Database(DB_PATH, { verbose: console.log });
+export const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
 function initializeSchema() {
