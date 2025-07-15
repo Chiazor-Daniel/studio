@@ -47,8 +47,6 @@ export async function joinQueueAction(
   
   try {
     const { department, counter } = validatedFields.data;
-    // This is less efficient with a DB, but good for the AI context.
-    // A better approach would be to get queue length directly from DB.
     const currentQueueState = getQueueState();
     const queueLength = currentQueueState[department].counters[counter].queue.length;
 
@@ -72,6 +70,8 @@ export async function joinQueueAction(
     const host = headers().get('host') || 'localhost:9002';
     const protocol = host.startsWith('localhost') ? 'http' : 'https';
     const statusLink = `${protocol}://${host}/queue/${newUser.id}`;
+    
+    // This will now just log to the console instead of sending a real email
     await sendQueueConfirmationEmail(newUser, statusLink);
     
     return {
@@ -101,8 +101,6 @@ export async function getAdminQueueStateAction(): Promise<QueueState> {
 export async function callNextCustomerAction(department: Department, counter: string): Promise<{ success: boolean }> {
     callNextUser(department, counter);
     revalidatePath('/admin');
-    // We also need to revalidate any active user queue pages, but that's complex.
-    // For this scaffold, we rely on client-side polling on the user page.
     return { success: true };
 }
 
