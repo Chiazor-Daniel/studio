@@ -25,10 +25,14 @@ export type ServingInfo = {
   startedAt: Date | null;
 };
 
+export type CounterState = {
+    queue: QueueUser[];
+    serving: ServingInfo;
+    lastQueueNumber: number;
+}
+
 export type DepartmentState = {
-  queue: QueueUser[];
-  serving: ServingInfo;
-  lastQueueNumber: number;
+  counters: Record<string, CounterState>;
 };
 
 export type QueueState = Record<Department, DepartmentState>;
@@ -38,6 +42,7 @@ export type UserStatus = {
   estimatedWaitTime?: number;
   confidence?: string;
   department: Department;
+  counter: string;
   queueNumber: number;
   currentlyServing: number | null;
   totalInQueue: number;

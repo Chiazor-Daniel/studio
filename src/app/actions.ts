@@ -44,13 +44,13 @@ export async function joinQueueAction(
   try {
     const { department, counter } = validatedFields.data;
     const currentQueueState = getQueueState();
-    const queueLength = currentQueueState[department].queue.length;
+    const queueLength = currentQueueState[department].counters[counter].queue.length;
 
     const aiEstimation = await estimateWaitTime({
         department,
         counter,
         queueLength: queueLength,
-        historicalData: "Average service time is 5 minutes per person. Peak hours are from 12 PM to 2 PM, where wait times can increase by 50%. The 'New Accounts' department is generally faster.",
+        historicalData: `Average service time is 5 minutes per person. Peak hours are from 12 PM to 2 PM, where wait times can increase by 50%. The 'New Accounts' department is generally faster. Counter-specific data might vary.`,
     });
 
     const newUser = addUserToQueue({ ...validatedFields.data });
@@ -82,8 +82,8 @@ export async function getAdminQueueStateAction(): Promise<QueueState> {
     return getQueueState();
 }
 
-export async function callNextCustomerAction(department: Department): Promise<{ success: boolean }> {
-    callNextUser(department);
+export async function callNextCustomerAction(department: Department, counter: string): Promise<{ success: boolean }> {
+    callNextUser(department, counter);
     revalidatePath('/admin');
     // We also need to revalidate any active user queue pages, but that's complex.
     // For this scaffold, we rely on client-side polling on the user page.

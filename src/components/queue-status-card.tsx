@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { getQueueStatusAction } from '@/app/actions';
 import type { UserStatus } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, User, Users, Hash, AlertTriangle } from 'lucide-react';
+import { Clock, User, Users, Hash, AlertTriangle, Building } from 'lucide-react';
 
 export function QueueStatusCard({ userId }: { userId: string }) {
   const [status, setStatus] = useState<UserStatus | null | 'not-found'>(null);
@@ -16,7 +16,7 @@ export function QueueStatusCard({ userId }: { userId: string }) {
         const newStatus = await getQueueStatusAction(userId);
         if (newStatus) {
             setStatus(newStatus);
-        } else if (status !== null) { // User was in queue but now is not (probably served)
+        } else if (status !== null && status !== 'not-found') { // User was in queue but now is not (probably served or removed)
             setStatus('not-found');
         } else if (status === null) { // Initial load, not found
              setStatus('not-found');
@@ -83,9 +83,9 @@ export function QueueStatusCard({ userId }: { userId: string }) {
       </CardHeader>
       <CardContent className="text-center space-y-6 py-10">
         <div>
-          <p className="text-sm text-muted-foreground font-medium">YOUR POSITION</p>
+          <p className="text-sm text-muted-foreground font-medium">YOUR POSITION AT {status.counter.toUpperCase()}</p>
           <p className="text-8xl font-bold text-primary transition-all duration-300">{status.position}</p>
-          <p className="text-muted-foreground">out of {status.totalInQueue} people</p>
+          <p className="text-muted-foreground">out of {status.totalInQueue} people at this counter</p>
         </div>
 
         <div className="space-y-1">
