@@ -1,6 +1,8 @@
+
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { joinQueueAction } from '@/app/actions';
@@ -40,7 +42,7 @@ function SubmitButton() {
 }
 
 export function JoinQueueForm() {
-  const [state, formAction] = useFormState(joinQueueAction, initialState);
+  const [state, formAction] = useActionState(joinQueueAction, initialState);
   const router = useRouter();
   const { toast } = useToast();
 
