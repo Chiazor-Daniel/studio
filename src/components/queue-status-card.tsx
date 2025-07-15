@@ -11,26 +11,36 @@ export function QueueStatusCard({ userId }: { userId: string }) {
   const [status, setStatus] = useState<UserStatus | null | 'not-found'>(null);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchStatus = async () => {
       try {
         const newStatus = await getQueueStatusAction(userId);
+        if (isCancelled) return;
+
         if (newStatus) {
             setStatus(newStatus);
-        } else if (status !== null && status !== 'not-found') { // User was in queue but now is not (probably served or removed)
+        } else {
+             // If user is no longer found in queue, update status.
+             // This handles cases where user was served or removed.
             setStatus('not-found');
-        } else if (status === null) { // Initial load, not found
-             setStatus('not-found');
         }
       } catch (error) {
         console.error('Failed to fetch queue status:', error);
+        if (!isCancelled) {
+            setStatus('not-found'); // Set to not-found on error as well
+        }
       }
     };
 
-    fetchStatus();
+    fetchStatus(); // Initial fetch
     const interval = setInterval(fetchStatus, 5000); // Poll every 5 seconds
 
-    return () => clearInterval(interval);
-  }, [userId, status]);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [userId]); // Dependency array only includes userId
 
   if (status === null) {
     return (
