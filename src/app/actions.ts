@@ -25,6 +25,8 @@ export type JoinQueueFormState = {
   };
   success: boolean;
   userId?: string;
+  queueNumber?: number;
+  estimatedWaitTime?: number;
 };
 
 export async function joinQueueAction(
@@ -76,6 +78,8 @@ export async function joinQueueAction(
       message: `Successfully joined the queue! Your number is ${newUser.queueNumber}. A confirmation has been sent to your email.`,
       success: true,
       userId: newUser.id,
+      queueNumber: newUser.queueNumber,
+      estimatedWaitTime: newUser.estimatedWaitTime,
     };
   } catch (error) {
     console.error(error);
