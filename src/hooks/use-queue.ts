@@ -115,8 +115,8 @@ export const useQueue = () => {
     counterState.queue.push(newUser);
     updateState(newState);
 
-    // Dummy email notification
-    const statusLink = `${window.location.origin}/queue/${newUser.id}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+    const statusLink = `${appUrl}/queue/${newUser.id}`;
     sendQueueConfirmationEmail(newUser, statusLink);
 
     return newUser;
