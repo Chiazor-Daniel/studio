@@ -4,7 +4,7 @@
 import type { QueueUser } from './types';
 import * as SibApiV3Sdk from 'sib-api-v3-sdk';
 
-const SENDER_EMAIL = 'queue@now.com';
+const SENDER_EMAIL = 'chiazordaniel317@gmail.com';
 const SENDER_NAME = 'QueueNow';
 
 export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: string) {
