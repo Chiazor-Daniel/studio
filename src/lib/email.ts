@@ -1,18 +1,21 @@
+
 'use server';
 
 import type { QueueUser } from './types';
+import * as SibApiV3Sdk from 'sib-api-v3-sdk';
 
-// This is a dummy email service that logs to the console.
-// It avoids network requests, making it safe for environments like Vercel
-// without any special configuration.
+const SENDER_EMAIL = 'queue@now.com';
+const SENDER_NAME = 'QueueNow';
 
 export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: string) {
-  const emailContent = `
+  if (!process.env.BREVO_API_KEY) {
+    console.log("BREVO_API_KEY not found, logging email to console instead.");
+    const emailContent = `
       ==================================================
       DUMMY EMAIL - NOT ACTUALLY SENT
       ==================================================
       To: ${user.contact}
-      From: "QueueNow" <no-reply@queuenow.example.com>
+      From: "${SENDER_NAME}" <${SENDER_EMAIL}>
       Subject: You're in the queue for ${user.department}!
 
       Hello, ${user.name}!
@@ -28,10 +31,44 @@ export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: st
       
       Thanks for using QueueNow!
       ==================================================
+    `;
+    console.log(emailContent);
+    return Promise.resolve({ success: true });
+  }
+
+  const defaultClient = SibApiV3Sdk.ApiClient.instance;
+  const apiKey = defaultClient.authentications['api-key'];
+  apiKey.apiKey = process.env.BREVO_API_KEY;
+
+  const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+  const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+
+  sendSmtpEmail.subject = `You're in the queue for ${user.department}!`;
+  sendSmtpEmail.htmlContent = `
+    <html>
+      <body>
+        <h1>Hello, ${user.name}!</h1>
+        <p>You have successfully joined the queue.</p>
+        <ul>
+          <li><strong>Department:</strong> ${user.department}</li>
+          <li><strong>Counter:</strong> ${user.counter}</li>
+          <li><strong>Your Number:</strong> ${user.queueNumber}</li>
+        </ul>
+        <p>You can check your real-time status here:</p>
+        <p><a href="${statusLink}">${statusLink}</a></p>
+        <p>Thanks for using QueueNow!</p>
+      </body>
+    </html>
   `;
-
-  console.log(emailContent);
-
-  // Return a success response immediately
-  return Promise.resolve({ success: true });
+  sendSmtpEmail.sender = { name: SENDER_NAME, email: SENDER_EMAIL };
+  sendSmtpEmail.to = [{ email: user.contact, name: user.name }];
+  
+  try {
+    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log('Brevo API called successfully. Returned data: ', JSON.stringify(data, null, 2));
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending email with Brevo: ', error);
+    return { success: false };
+  }
 }
