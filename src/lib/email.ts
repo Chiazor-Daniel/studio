@@ -8,6 +8,17 @@ const SENDER_EMAIL = 'chiazordaniel317@gmail.com';
 const SENDER_NAME = 'QueueNow';
 
 export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: string) {
+  // Enhance status link with query parameters for a better demo experience
+  const params = new URLSearchParams({
+    name: user.name,
+    queueNumber: user.queueNumber.toString(),
+    department: user.department,
+    counter: user.counter,
+    estimatedWaitTime: user.estimatedWaitTime?.toString() || '10',
+    confidence: user.confidence || 'medium',
+  });
+  const richStatusLink = `${statusLink}?${params.toString()}`;
+
   if (!process.env.BREVO_API_KEY) {
     console.log("BREVO_API_KEY not found, logging email to console instead.");
     const emailContent = `
@@ -27,7 +38,7 @@ export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: st
       - Your Number: ${user.queueNumber}
       
       You can check your real-time status here:
-      ${statusLink}
+      ${richStatusLink}
       
       Thanks for using QueueNow!
       ==================================================
@@ -56,8 +67,8 @@ export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: st
             <li><strong>Your Number:</strong> #${user.queueNumber}</li>
           </ul>
           <p>You can check your real-time status by clicking the button below:</p>
-          <a href="${statusLink}" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Check My Status</a>
-          <p style="margin-top: 20px; font-size: 0.9em; color: #777;">If the button doesn't work, you can copy and paste this link into your browser:<br>${statusLink}</p>
+          <a href="${richStatusLink}" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Check My Status</a>
+          <p style="margin-top: 20px; font-size: 0.9em; color: #777;">If the button doesn't work, you can copy and paste this link into your browser:<br>${richStatusLink}</p>
           <p>Thanks for using QueueNow!</p>
         </div>
       </body>

@@ -1,19 +1,46 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import type { UserStatus } from '@/lib/types';
+import type { UserStatus, Department } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, Hash, AlertTriangle, User } from 'lucide-react';
 import { useQueue } from '@/hooks/use-queue';
 
-export function QueueStatusCard({ userId }: { userId: string }) {
+function QueueStatusCardContent({ userId }: { userId: string }) {
   const { getUserStatus } = useQueue();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<UserStatus | 'not-found' | null>(null);
 
   useEffect(() => {
     const fetchStatus = () => {
-      const newStatus = getUserStatus(userId);
+      let newStatus = getUserStatus(userId);
+      
+      // If user is not in local storage (e.g., accessed from email link), use query params as fallback
+      if (!newStatus) {
+        const name = searchParams.get('name');
+        const queueNumber = searchParams.get('queueNumber');
+        const department = searchParams.get('department') as Department;
+        const counter = searchParams.get('counter');
+        const estimatedWaitTime = searchParams.get('estimatedWaitTime');
+        const confidence = searchParams.get('confidence');
+
+        if (name && queueNumber && department && counter) {
+            newStatus = {
+                userName: name,
+                queueNumber: parseInt(queueNumber, 10),
+                department: department,
+                counter: counter,
+                estimatedWaitTime: estimatedWaitTime ? parseInt(estimatedWaitTime, 10) : 10,
+                confidence: confidence || 'medium',
+                position: 1, // Defaulting as we don't know the real position
+                totalInQueue: 1, // Defaulting
+                currentlyServing: null, // Defaulting
+            };
+        }
+      }
+
       setStatus(newStatus || 'not-found');
     };
 
@@ -23,7 +50,7 @@ export function QueueStatusCard({ userId }: { userId: string }) {
     const interval = setInterval(fetchStatus, 2000); 
 
     return () => clearInterval(interval);
-  }, [userId, getUserStatus]);
+  }, [userId, getUserStatus, searchParams]);
 
   if (status === null) {
     return (
@@ -59,7 +86,7 @@ export function QueueStatusCard({ userId }: { userId: string }) {
               </CardHeader>
               <CardContent className="text-center">
                   <p className="text-muted-foreground">
-                      Your ticket could not be found in the queue. You may have already been served, or the ticket is invalid.
+                      Your ticket could not be found. It may have expired or already been served. Please join the queue again if needed.
                   </p>
               </CardContent>
           </Card>
@@ -101,5 +128,13 @@ export function QueueStatusCard({ userId }: { userId: string }) {
         </div>
       </CardFooter>
     </Card>
+  );
+}
+
+export function QueueStatusCard({ userId }: { userId: string }) {
+  return (
+    <Suspense fallback={<Skeleton className="h-[400px] w-full" />}>
+      <QueueStatusCardContent userId={userId} />
+    </Suspense>
   );
 }
