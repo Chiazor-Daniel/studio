@@ -46,17 +46,20 @@ export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: st
   sendSmtpEmail.subject = `You're in the queue for ${user.department}!`;
   sendSmtpEmail.htmlContent = `
     <html>
-      <body>
-        <h1>Hello, ${user.name}!</h1>
-        <p>You have successfully joined the queue.</p>
-        <ul>
-          <li><strong>Department:</strong> ${user.department}</li>
-          <li><strong>Counter:</strong> ${user.counter}</li>
-          <li><strong>Your Number:</strong> ${user.queueNumber}</li>
-        </ul>
-        <p>You can check your real-time status here:</p>
-        <p><a href="${statusLink}">${statusLink}</a></p>
-        <p>Thanks for using QueueNow!</p>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <div style="max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+          <h1 style="color: #333;">Hello, ${user.name}!</h1>
+          <p>You have successfully joined the queue. Here are your details:</p>
+          <ul style="list-style-type: none; padding: 0;">
+            <li><strong>Department:</strong> ${user.department}</li>
+            <li><strong>Counter:</strong> ${user.counter}</li>
+            <li><strong>Your Number:</strong> #${user.queueNumber}</li>
+          </ul>
+          <p>You can check your real-time status by clicking the button below:</p>
+          <a href="${statusLink}" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Check My Status</a>
+          <p style="margin-top: 20px; font-size: 0.9em; color: #777;">If the button doesn't work, you can copy and paste this link into your browser:<br>${statusLink}</p>
+          <p>Thanks for using QueueNow!</p>
+        </div>
       </body>
     </html>
   `;
