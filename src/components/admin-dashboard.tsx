@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -59,7 +60,7 @@ export function AdminDashboard() {
         </Button>
       </div>
       <Tabs defaultValue={departments[0]} className="w-full">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 h-auto sm:grid-cols-2 md:grid-cols-3">
           {departments.map((dept) => (
             <TabsTrigger key={dept} value={dept}>
               {dept} ({getTotalQueueLength(dept)})
