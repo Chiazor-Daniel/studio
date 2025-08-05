@@ -1,17 +1,34 @@
+
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import type { UserStatus, Department } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, Hash, AlertTriangle, User } from 'lucide-react';
+import { Clock, Hash, AlertTriangle, User, LogOut, Loader2 } from 'lucide-react';
 import { useQueue } from '@/hooks/use-queue';
+import { Button } from './ui/button';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 function QueueStatusCardContent({ userId }: { userId: string }) {
-  const { getUserStatus } = useQueue();
+  const { getUserStatus, removeUser } = useQueue();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { toast } = useToast();
   const [status, setStatus] = useState<UserStatus | 'not-found' | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     const fetchStatus = () => {
@@ -51,6 +68,18 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
 
     return () => clearInterval(interval);
   }, [userId, getUserStatus, searchParams]);
+  
+  const handleCancel = () => {
+    setIsCancelling(true);
+    removeUser(userId);
+    toast({
+      title: "You've left the queue.",
+      description: "Your spot has been successfully cancelled.",
+    });
+    // The useEffect will update the status to 'not-found' automatically
+    // No need to set it here, as it would cause a flash of content.
+    // The router.push will happen after the dialog closes.
+  }
 
   if (status === null) {
     return (
@@ -86,14 +115,20 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
               </CardHeader>
               <CardContent className="text-center">
                   <p className="text-muted-foreground">
-                      Your ticket could not be found. It may have expired or already been served. Please join the queue again if needed.
+                      Your ticket could not be found. It may have been served or you have cancelled your spot. Please join the queue again if needed.
                   </p>
               </CardContent>
+              <CardFooter>
+                  <Button onClick={() => router.push('/')} className="w-full">
+                      Join Queue Again
+                  </Button>
+              </CardFooter>
           </Card>
       );
   }
 
   return (
+      <>
     <Card className="shadow-lg overflow-hidden">
       <CardHeader className="bg-primary text-primary-foreground text-center p-6">
         <CardTitle className="text-3xl font-headline">Hello, {status.userName}!</CardTitle>
@@ -128,6 +163,33 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
         </div>
       </CardFooter>
     </Card>
+
+    <div className="mt-6 flex justify-center">
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                 <Button variant="destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Cancel My Spot
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently remove you from the queue. You will lose your current spot and will need to rejoin if you change your mind.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Stay in Queue</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCancel} disabled={isCancelling}>
+                        {isCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Yes, Cancel My Spot
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    </div>
+    </>
   );
 }
 

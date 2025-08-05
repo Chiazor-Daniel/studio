@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -117,6 +118,8 @@ export const useQueue = () => {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
     const statusLink = `${appUrl}/queue/${newUser.id}`;
+    
+    // Don't await this, let it run in the background
     sendQueueConfirmationEmail(newUser, statusLink);
 
     return newUser;
@@ -191,5 +194,29 @@ export const useQueue = () => {
     return null; // User not found
   }, [queueState]);
 
-  return { queueState, addUserToQueue, callNextUser, removeUser, getUserStatus };
+  const getQueueStats = useCallback(() => {
+    if (!queueState) {
+        return { totalWaiting: 0, averageWaitTime: 0 };
+    }
+
+    let totalWaiting = 0;
+    let totalWaitTime = 0;
+    
+    for (const dept of departments) {
+        for (const counterName in queueState[dept].counters) {
+            const counterState = queueState[dept].counters[counterName];
+            totalWaiting += counterState.queue.length;
+            counterState.queue.forEach(user => {
+                totalWaitTime += user.estimatedWaitTime ?? 0;
+            });
+        }
+    }
+
+    const averageWaitTime = totalWaiting > 0 ? totalWaitTime / totalWaiting : 0;
+    
+    return { totalWaiting, averageWaitTime };
+  }, [queueState]);
+
+
+  return { queueState, addUserToQueue, callNextUser, removeUser, getUserStatus, getQueueStats };
 };

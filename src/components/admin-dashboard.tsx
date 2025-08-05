@@ -3,20 +3,20 @@
 
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import type { Department } from '@/lib/types';
 import { departments, counters as allCounters } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserX, ChevronRight, LogOut } from 'lucide-react';
+import { Loader2, UserX, ChevronRight, LogOut, Users, Timer } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useQueue } from '@/hooks/use-queue';
 import { useRouter } from 'next/navigation';
 
 export function AdminDashboard() {
-  const { queueState, callNextUser, removeUser } = useQueue();
+  const { queueState, callNextUser, removeUser, getQueueStats } = useQueue();
   const [isSubmitting, setIsSubmitting] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const router = useRouter();
@@ -51,6 +51,8 @@ export function AdminDashboard() {
     return Object.values(queueState[dept].counters).reduce((sum, counter) => sum + counter.queue.length, 0);
   }
 
+  const stats = getQueueStats();
+
   return (
     <>
       <div className="flex justify-end mb-4">
@@ -59,8 +61,36 @@ export function AdminDashboard() {
           Logout
         </Button>
       </div>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Queue Analytics</CardTitle>
+          <CardDescription>A real-time overview of queue statistics across all departments.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="flex items-center space-x-4 rounded-md border p-4">
+                <div className="flex-shrink-0">
+                    <Users className="h-8 w-8 text-primary" />
+                </div>
+                <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-none">Total People Waiting</p>
+                    <p className="text-2xl font-bold">{stats.totalWaiting}</p>
+                </div>
+            </div>
+            <div className="flex items-center space-x-4 rounded-md border p-4">
+                <div className="flex-shrink-0">
+                    <Timer className="h-8 w-8 text-accent" />
+                </div>
+                <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-none">Average Wait Time</p>
+                    <p className="text-2xl font-bold">~{stats.averageWaitTime.toFixed(0)} min</p>
+                </div>
+            </div>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue={departments[0]} className="w-full">
-        <TabsList className="grid w-full grid-cols-1 h-auto sm:grid-cols-2 md:grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 gap-1 h-auto sm:grid-cols-3">
           {departments.map((dept) => (
             <TabsTrigger key={dept} value={dept}>
               {dept} ({getTotalQueueLength(dept)})
