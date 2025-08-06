@@ -1,7 +1,5 @@
-
 'use client';
 
-import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,16 +7,13 @@ import { Button } from '@/components/ui/button';
 import type { Department } from '@/lib/types';
 import { departments, counters as allCounters } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2, UserX, ChevronRight, LogOut, Users, Timer } from 'lucide-react';
+import { LogOut, Users, Timer } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useQueue } from '@/hooks/use-queue';
 import { useRouter } from 'next/navigation';
 
 export function AdminDashboard() {
-  const { queueState, callNextUser, removeUser, getQueueStats } = useQueue();
-  const [isSubmitting, setIsSubmitting] = useState<Record<string, boolean>>({});
-  const { toast } = useToast();
+  const { queueState, getQueueStats } = useQueue();
   const router = useRouter();
 
   if (!queueState) {
@@ -29,22 +24,6 @@ export function AdminDashboard() {
     localStorage.removeItem('isAdminLoggedIn');
     router.push('/admin/login');
   };
-
-  const handleCallNext = async (department: Department, counter: string) => {
-    const key = `call-${department}-${counter}`;
-    setIsSubmitting(prev => ({ ...prev, [key]: true }));
-    callNextUser(department, counter);
-    toast({ title: 'Success', description: `Called next customer for ${counter}.` });
-    setIsSubmitting(prev => ({ ...prev, [key]: false }));
-  };
-  
-  const handleRemove = async (userId: string, userName: string) => {
-    const key = `remove-${userId}`;
-    setIsSubmitting(prev => ({ ...prev, [key]: true }));
-    removeUser(userId);
-    toast({ title: 'Success', description: `Removed ${userName} from the queue.` });
-     setIsSubmitting(prev => ({ ...prev, [key]: false }));
-  }
 
   const getTotalQueueLength = (dept: Department) => {
     if (!queueState || !queueState[dept]) return 0;
@@ -120,14 +99,6 @@ export function AdminDashboard() {
                               Now serving: #{servingUser?.queueNumber ?? 'N/A'} - {servingUser?.name ?? 'Nobody'}
                             </p>
                           </div>
-                          <Button 
-                            onClick={() => handleCallNext(dept, counterName)} 
-                            disabled={isSubmitting[`call-${dept}-${counterName}`] || queue.length === 0}
-                            size="sm"
-                          >
-                            {isSubmitting[`call-${dept}-${counterName}`] ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
-                            Call Next
-                          </Button>
                         </CardHeader>
                         <CardContent>
                           <Table>
@@ -137,7 +108,6 @@ export function AdminDashboard() {
                                 <TableHead>Name</TableHead>
                                 <TableHead>Contact</TableHead>
                                 <TableHead>Wait Time</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -150,22 +120,11 @@ export function AdminDashboard() {
                                     <TableCell className="text-muted-foreground">
                                       {formatDistanceToNow(new Date(user.joinedAt), { addSuffix: true })}
                                     </TableCell>
-                                    <TableCell className="text-right">
-                                        <Button 
-                                            variant="ghost" 
-                                            size="icon"
-                                            onClick={() => handleRemove(user.id, user.name)}
-                                            disabled={isSubmitting[`remove-${user.id}`]}
-                                            aria-label="Remove user"
-                                        >
-                                            {isSubmitting[`remove-${user.id}`] ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4 text-destructive" />}
-                                        </Button>
-                                    </TableCell>
                                   </TableRow>
                                 ))
                               ) : (
                                 <TableRow>
-                                  <TableCell colSpan={5} className="h-24 text-center">
+                                  <TableCell colSpan={4} className="h-24 text-center">
                                     The queue for this counter is empty.
                                   </TableCell>
                                 </TableRow>
