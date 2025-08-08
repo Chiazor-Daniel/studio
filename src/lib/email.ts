@@ -7,34 +7,22 @@ import * as SibApiV3Sdk from 'sib-api-v3-sdk';
 const SENDER_EMAIL = 'chiazordaniel317@gmail.com';
 const SENDER_NAME = 'QueueNow';
 
-export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: string) {
-
-  if (!process.env.BREVO_API_KEY) {
+async function sendEmail(to: { email: string, name: string }, subject: string, htmlContent: string) {
+    if (!process.env.BREVO_API_KEY) {
     console.log("BREVO_API_KEY not found, logging email to console instead.");
     const emailContent = `
       ==================================================
       DUMMY EMAIL - NOT ACTUALLY SENT
       ==================================================
-      To: ${user.contact}
+      To: ${to.email}
       From: "${SENDER_NAME}" <${SENDER_EMAIL}>
-      Subject: You're in the queue for ${user.department}!
+      Subject: ${subject}
 
-      Hello, ${user.name}!
-      
-      You have successfully joined the queue.
-      
-      - Department: ${user.department}
-      - Counter: ${user.counter}
-      - Your Position: ${user.queueNumber}
-      
-      You can check your real-time status here:
-      ${statusLink}
-      
-      Thanks for using QueueNow!
+      ${htmlContent.replace(/<[^>]*>?/gm, '\n')}
       ==================================================
     `;
     console.log(emailContent);
-    return Promise.resolve({ success: true });
+    return { success: true };
   }
 
   const defaultClient = SibApiV3Sdk.ApiClient.instance;
@@ -44,8 +32,24 @@ export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: st
   const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
   const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
 
-  sendSmtpEmail.subject = `You're in the queue for ${user.department}!`;
-  sendSmtpEmail.htmlContent = `
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = htmlContent;
+  sendSmtpEmail.sender = { name: SENDER_NAME, email: SENDER_EMAIL };
+  sendSmtpEmail.to = [to];
+  
+  try {
+    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log('Brevo API called successfully. Returned data: ', JSON.stringify(data, null, 2));
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending email with Brevo: ', error);
+    return { success: false };
+  }
+}
+
+export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: string) {
+  const subject = `You're in the queue for ${user.department}!`;
+  const htmlContent = `
     <html>
       <body style="font-family: Arial, sans-serif; line-height: 1.6;">
         <div style="max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
@@ -64,15 +68,27 @@ export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: st
       </body>
     </html>
   `;
-  sendSmtpEmail.sender = { name: SENDER_NAME, email: SENDER_EMAIL };
-  sendSmtpEmail.to = [{ email: user.contact, name: user.name }];
-  
-  try {
-    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log('Brevo API called successfully. Returned data: ', JSON.stringify(data, null, 2));
-    return { success: true };
-  } catch (error) {
-    console.error('Error sending email with Brevo: ', error);
-    return { success: false };
-  }
+  return sendEmail({ email: user.contact, name: user.name }, subject, htmlContent);
+}
+
+
+export async function sendQueueUpdateEmail(user: QueueUser, newPosition: number, statusLink: string) {
+  const subject = `Update: You've moved up in the queue!`;
+  const htmlContent = `
+    <html>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <div style="max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+          <h1 style="color: #333;">Great news, ${user.name}!</h1>
+          <p>Someone ahead of you in the queue has left, and you've moved up.</p>
+          <p>Your new position for <strong>${user.department}</strong> at <strong>${user.counter}</strong> is now:</p>
+          <p style="font-size: 3em; font-weight: bold; color: #3b82f6; text-align: center; margin: 20px 0;">#${newPosition}</p>
+          <p>You can check your real-time status by clicking the button below:</p>
+          <a href="${statusLink}" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Check My Status</a>
+          <p style="margin-top: 20px; font-size: 0.9em; color: #777;">If the button doesn't work, you can copy and paste this link into your browser:<br>${statusLink}</p>
+          <p>Thanks for using QueueNow!</p>
+        </div>
+      </body>
+    </html>
+  `;
+  return sendEmail({ email: user.contact, name: user.name }, subject, htmlContent);
 }

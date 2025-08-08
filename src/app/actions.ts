@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { ObjectId } from 'mongodb';
 import clientPromise, { dbName, ticketsCollectionName } from '@/lib/mongodb';
 import type { Department, QueueUser, UserStatus, JoinQueueFormState } from '@/lib/types';
-import { sendQueueConfirmationEmail } from '@/lib/email';
+import { sendQueueConfirmationEmail, sendQueueUpdateEmail } from '@/lib/email';
 import { estimateWaitTime } from '@/ai/flows/estimate-wait-time';
 
 
@@ -163,8 +163,23 @@ export async function cancelUserTicket(userId: string): Promise<{ success: boole
   try {
     const client = await clientPromise;
     const db = client.db(dbName);
-    const ticketsCollection = db.collection(ticketsCollectionName);
+    const ticketsCollection = db.collection<QueueUser>(ticketsCollectionName);
 
+    // Find the user who is cancelling to get their details
+    const cancellingUser = await ticketsCollection.findOne({ _id: new ObjectId(userId) });
+    if (!cancellingUser) {
+      return { success: false };
+    }
+
+    // Find all users who are in the same queue and joined after the cancelling user
+    const usersToNotify = await ticketsCollection.find({
+      department: cancellingUser.department,
+      counter: cancellingUser.counter,
+      status: 'waiting',
+      joinedAt: { $gt: cancellingUser.joinedAt }
+    }).sort({ joinedAt: 1 }).toArray();
+
+    // Now, update the user's status to 'cancelled'
     const result = await ticketsCollection.updateOne(
       { _id: new ObjectId(userId) },
       { $set: { status: 'cancelled' } }
@@ -173,6 +188,24 @@ export async function cancelUserTicket(userId: string): Promise<{ success: boole
     if (result.modifiedCount > 0) {
       revalidatePath('/admin');
       revalidatePath(`/queue/${userId}`);
+      
+      // Send update emails to the affected users
+      for (const user of usersToNotify) {
+        // We need to calculate their new position. The simplest way is to count again.
+        const newPosition = await ticketsCollection.countDocuments({
+          department: user.department,
+          counter: user.counter,
+          status: 'waiting',
+          joinedAt: { $lte: user.joinedAt }
+        });
+
+        const statusLink = process.env.NEXT_PUBLIC_APP_URL
+          ? `${process.env.NEXT_PUBLIC_APP_URL}/queue/${user._id.toString()}`
+          : `/queue/${user._id.toString()}`;
+        
+        await sendQueueUpdateEmail(user, newPosition, statusLink);
+      }
+      
       return { success: true };
     }
     return { success: false };
