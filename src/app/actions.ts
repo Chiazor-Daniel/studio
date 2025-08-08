@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -104,9 +105,10 @@ export async function joinQueueAction(
 
   } catch (error) {
     console.error('Error joining queue:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
     return {
       success: false,
-      message: 'An error occurred. Please try again.',
+      message: `An error occurred: ${errorMessage}`,
     };
   }
 }

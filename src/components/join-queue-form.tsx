@@ -15,6 +15,9 @@ import { Building, User, Mail, Users, ArrowRight, Loader2, PartyPopper, Clock, T
 import type { Department, JoinQueueFormState } from '@/lib/types';
 import { departments, counters } from '@/lib/types';
 import { joinQueueAction } from '@/app/actions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
+
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -131,8 +134,15 @@ export function JoinQueueForm() {
           </div>
 
           <SubmitButton />
+
           {!state.success && state.message && state.message !== 'Validation failed.' && (
-              <p className="text-sm font-medium text-destructive text-center">{state.message}</p>
+             <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                    {state.message}
+                </AlertDescription>
+            </Alert>
           )}
         </form>
       </CardContent>
