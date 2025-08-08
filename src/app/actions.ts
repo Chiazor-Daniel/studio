@@ -7,6 +7,7 @@ import { ObjectId } from 'mongodb';
 import clientPromise, { dbName, ticketsCollectionName } from '@/lib/mongodb';
 import type { Department, QueueUser, UserStatus, JoinQueueFormState } from '@/lib/types';
 import { sendQueueConfirmationEmail } from '@/lib/email';
+import { estimateWaitTime } from '@/ai/flows/estimate-wait-time';
 
 
 const JoinQueueSchema = z.object({
@@ -43,15 +44,19 @@ export async function joinQueueAction(
     const db = client.db(dbName);
     const ticketsCollection = db.collection<Omit<QueueUser, 'id'>>(ticketsCollectionName);
 
-    // --- Basic Wait Time Estimation ---
-    const waitingCount = await ticketsCollection.countDocuments({ 
-        department: department, 
-        counter: counter,
-        status: 'waiting'
+    // Get current queue length for the AI model
+    const waitingCount = await ticketsCollection.countDocuments({
+      department: department,
+      counter: counter,
+      status: 'waiting',
     });
-    
-    const estimatedWaitTime = waitingCount * 5; // Simple estimation: 5 minutes per person
-    // --- End Basic Wait Time Estimation ---
+
+    // --- AI Wait Time Estimation ---
+    const aiEstimation = await estimateWaitTime({
+      department: department as Department,
+      currentQueueLength: waitingCount,
+    });
+    // --- End AI Wait Time Estimation ---
 
 
     const newUser: Omit<QueueUser, 'id'> = {
@@ -60,8 +65,8 @@ export async function joinQueueAction(
       department: department as Department,
       counter,
       joinedAt: new Date(),
-      estimatedWaitTime: estimatedWaitTime,
-      confidence: 'medium', // Since this is a simple calculation, we can set a static confidence
+      estimatedWaitTime: aiEstimation.estimatedWaitTime, 
+      confidence: aiEstimation.confidence,
       status: 'waiting',
       queueNumber: 0 // Will be assigned based on position later
     };
