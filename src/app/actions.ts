@@ -1,27 +1,218 @@
 'use server';
 
 import { z } from 'zod';
-import type { JoinQueueFormState } from '@/lib/types';
 import { revalidatePath } from 'next/cache';
+import { ObjectId } from 'mongodb';
+import clientPromise, { dbName, ticketsCollectionName } from '@/lib/mongodb';
+import type { Department, QueueUser, UserStatus, JoinQueueFormState } from '@/lib/types';
+import { sendQueueConfirmationEmail } from '@/lib/email';
+import { estimateWaitTime, EstimateWaitTimeInput } from '@/ai/flows/estimate-wait-time';
 
-// This file is now mostly empty as queue logic has been moved to the client-side `useQueue` hook.
-// We keep a shell of the joinQueueAction to avoid breaking imports, but it no longer does anything.
-// This can be cleaned up in a future step.
+
+const JoinQueueSchema = z.object({
+  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
+  contact: z.string().email({ message: 'Please enter a valid email.' }),
+  department: z.string().min(1, { message: 'Please select a department.' }),
+  counter: z.string().min(1, { message: 'Please select a counter.' }),
+});
+
 
 export async function joinQueueAction(
   prevState: JoinQueueFormState,
   formData: FormData
 ): Promise<JoinQueueFormState> {
-  // This server action is no longer used for queue logic.
-  // The logic is now handled on the client in `useQueue` hook.
-  return {
-    message: 'This action is deprecated. Use client-side logic.',
-    success: false,
-  };
+  const validatedFields = JoinQueueSchema.safeParse({
+    name: formData.get('name'),
+    contact: formData.get('contact'),
+    department: formData.get('department'),
+    counter: formData.get('counter'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      success: false,
+      message: 'Validation failed.',
+      errors: validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  const { name, contact, department, counter } = validatedFields.data;
+
+  try {
+    const client = await clientPromise;
+    const db = client.db(dbName);
+    const ticketsCollection = db.collection<Omit<QueueUser, 'id'>>(ticketsCollectionName);
+
+    // --- AI Wait Time Estimation ---
+    const waitingCount = await ticketsCollection.countDocuments({ 
+        department: department, 
+        counter: counter,
+        status: 'waiting'
+    });
+    
+    const estimationInput: EstimateWaitTimeInput = {
+      department,
+      counter,
+      queueLength: waitingCount,
+      // In a real app, this would come from historical data in the DB
+      historicalData: "Average wait time is usually 5 minutes per person."
+    };
+    
+    const aiResponse = await estimateWaitTime(estimationInput);
+    // --- End AI Wait Time Estimation ---
+
+
+    const newUser: Omit<QueueUser, 'id'> = {
+      name,
+      contact,
+      department: department as Department,
+      counter,
+      joinedAt: new Date(),
+      estimatedWaitTime: aiResponse.estimatedWaitTime,
+      confidence: aiResponse.confidence,
+      status: 'waiting',
+      queueNumber: 0 // Will be assigned based on position later
+    };
+
+    const result = await ticketsCollection.insertOne(newUser);
+    const newUserId = result.insertedId.toString();
+
+    const userWithId: QueueUser = { ...newUser, id: newUserId };
+    
+    // We get the position *after* inserting to get the correct queue number
+    const position = await ticketsCollection.countDocuments({ 
+        department, 
+        counter,
+        status: 'waiting',
+        joinedAt: { $lte: userWithId.joinedAt } 
+    });
+    userWithId.queueNumber = position;
+
+    revalidatePath('/admin');
+    revalidatePath(`/queue/${newUserId}`);
+    
+    const statusLink = process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/queue/${newUserId}` : `/queue/${newUserId}`;
+    await sendQueueConfirmationEmail(userWithId, statusLink);
+
+    return {
+      success: true,
+      message: 'Successfully joined the queue.',
+      userId: newUserId,
+      queueNumber: userWithId.queueNumber,
+      estimatedWaitTime: userWithId.estimatedWaitTime,
+    };
+
+  } catch (error) {
+    console.error('Error joining queue:', error);
+    return {
+      success: false,
+      message: 'An error occurred. Please try again.',
+    };
+  }
 }
 
-// These actions are also now handled on the client side.
-// They are kept here to prevent breaking changes but can be removed.
+export async function getUserStatus(userId: string): Promise<UserStatus | null> {
+    if (!ObjectId.isValid(userId)) {
+        return null;
+    }
+    
+    try {
+        const client = await clientPromise;
+        const db = client.db(dbName);
+        const ticketsCollection = db.collection<QueueUser>(ticketsCollectionName);
+        
+        const userTicket = await ticketsCollection.findOne({ _id: new ObjectId(userId) });
+        
+        if (!userTicket || userTicket.status !== 'waiting') {
+            return null;
+        }
+
+        const { department, counter, name, estimatedWaitTime, confidence } = userTicket;
+
+        const position = await ticketsCollection.countDocuments({
+            department,
+            counter,
+            status: 'waiting',
+            joinedAt: { $lte: userTicket.joinedAt }
+        });
+
+        const totalInQueue = await ticketsCollection.countDocuments({ department, counter, status: 'waiting' });
+        
+        const servingTicket = await ticketsCollection.findOne({ department, counter, status: 'serving' }, { sort: { calledAt: -1 } });
+
+        return {
+            userName: name,
+            position,
+            department,
+            counter,
+            totalInQueue,
+            estimatedWaitTime,
+            confidence,
+            currentlyServing: servingTicket?.queueNumber ?? null,
+        };
+
+    } catch (error) {
+        console.error('Error getting user status:', error);
+        return null;
+    }
+}
+
+export async function cancelUserTicket(userId: string): Promise<{ success: boolean }> {
+  if (!ObjectId.isValid(userId)) {
+    return { success: false };
+  }
+
+  try {
+    const client = await clientPromise;
+    const db = client.db(dbName);
+    const ticketsCollection = db.collection(ticketsCollectionName);
+
+    const result = await ticketsCollection.updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { status: 'cancelled' } }
+    );
+
+    if (result.modifiedCount > 0) {
+      revalidatePath('/admin');
+      revalidatePath(`/queue/${userId}`);
+      return { success: true };
+    }
+    return { success: false };
+  } catch (error) {
+    console.error('Error cancelling ticket:', error);
+    return { success: false };
+  }
+}
+
+export async function getAdminDashboardData() {
+    try {
+        const client = await clientPromise;
+        const db = client.db(dbName);
+        const ticketsCollection = db.collection<QueueUser>(ticketsCollectionName);
+
+        const allWaitingTickets = await ticketsCollection.find({ status: 'waiting' }).sort({ joinedAt: 1 }).toArray();
+
+        // Calculate stats
+        const totalWaiting = allWaitingTickets.length;
+        const totalWaitTime = allWaitingTickets.reduce((sum, ticket) => sum + (ticket.estimatedWaitTime || 0), 0);
+        const averageWaitTime = totalWaiting > 0 ? totalWaitTime / totalWaiting : 0;
+        
+        return {
+            tickets: JSON.parse(JSON.stringify(allWaitingTickets)) as QueueUser[], // Serialize to pass to client component
+            stats: {
+                totalWaiting,
+                averageWaitTime,
+            }
+        };
+    } catch (error) {
+        console.error("Error fetching admin data:", error);
+        return {
+            tickets: [],
+            stats: { totalWaiting: 0, averageWaitTime: 0 }
+        };
+    }
+}
+
 export async function revalidateAdmin() {
   revalidatePath('/admin');
 }

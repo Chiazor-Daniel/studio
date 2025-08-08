@@ -1,37 +1,59 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import type { Department } from '@/lib/types';
+import type { Department, QueueUser } from '@/lib/types';
 import { departments, counters as allCounters } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
 import { LogOut, Users, Timer } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { useQueue } from '@/hooks/use-queue';
 import { useRouter } from 'next/navigation';
+import { getAdminDashboardData } from '@/app/actions';
+
+interface AdminData {
+    tickets: QueueUser[];
+    stats: {
+        totalWaiting: number;
+        averageWaitTime: number;
+    };
+}
 
 export function AdminDashboard() {
-  const { queueState, getQueueStats } = useQueue();
   const router = useRouter();
+  const [data, setData] = useState<AdminData | null>(null);
 
-  if (!queueState) {
-    return <div className="text-center p-8">Loading queue state...</div>;
-  }
+  useEffect(() => {
+    const fetchData = async () => {
+      const adminData = await getAdminDashboardData();
+      setData(adminData);
+    };
+    
+    fetchData();
+    const interval = setInterval(fetchData, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
   
   const handleLogout = () => {
     localStorage.removeItem('isAdminLoggedIn');
     router.push('/admin/login');
   };
 
-  const getTotalQueueLength = (dept: Department) => {
-    if (!queueState || !queueState[dept]) return 0;
-    return Object.values(queueState[dept].counters).reduce((sum, counter) => sum + counter.queue.length, 0);
+  if (!data) {
+    return <div className="text-center p-8">Loading queue state...</div>;
   }
+  
+  const { tickets, stats } = data;
 
-  const stats = getQueueStats();
+  const getTicketsByDept = (dept: Department) => tickets.filter(t => t.department === dept);
+  const getTicketsByCounter = (dept: Department, counter: string) => getTicketsByDept(dept).filter(t => t.counter === counter);
 
+  const getTotalQueueLength = (dept: Department) => {
+    return getTicketsByDept(dept).length;
+  }
+  
   return (
     <>
       <div className="flex justify-end mb-4">
@@ -80,12 +102,8 @@ export function AdminDashboard() {
           <TabsContent key={dept} value={dept}>
             <Accordion type="multiple" defaultValue={allCounters[dept]} className="w-full">
               {allCounters[dept].map((counterName) => {
-                const counterState = queueState[dept].counters[counterName];
-                if (!counterState) return null;
+                const queue = getTicketsByCounter(dept, counterName);
                 
-                const queue = counterState.queue;
-                const serving = counterState.serving;
-
                 return (
                   <AccordionItem value={counterName} key={counterName}>
                     <AccordionTrigger className="text-xl font-semibold px-4">
@@ -96,7 +114,7 @@ export function AdminDashboard() {
                         <CardHeader className="flex flex-row items-center justify-between pt-0">
                           <div>
                             <p className="text-sm text-muted-foreground">
-                              Now serving: #{serving?.queueNumber ?? 'N/A'} - {serving?.user?.name ?? 'Nobody'}
+                              Viewing waiting users for this counter.
                             </p>
                           </div>
                         </CardHeader>
@@ -113,7 +131,7 @@ export function AdminDashboard() {
                             <TableBody>
                               {queue.length > 0 ? (
                                 queue.map((user, index) => (
-                                  <TableRow key={user.id}>
+                                  <TableRow key={user.id || user._id?.toString()}>
                                     <TableCell className="font-bold text-lg">{index + 1}</TableCell>
                                     <TableCell>{user.name}</TableCell>
                                     <TableCell className="text-muted-foreground">{user.contact}</TableCell>

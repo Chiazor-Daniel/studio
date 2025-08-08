@@ -1,13 +1,12 @@
 
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import type { UserStatus, Department } from '@/lib/types';
+import type { UserStatus } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Clock, Hash, AlertTriangle, User, LogOut, Loader2 } from 'lucide-react';
-import { useQueue } from '@/hooks/use-queue';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -21,66 +20,52 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { getUserStatus, cancelUserTicket } from '@/app/actions';
 
-function QueueStatusCardContent({ userId }: { userId: string }) {
-  const { getUserStatus, removeUser } = useQueue();
-  const searchParams = useSearchParams();
+export function QueueStatusCard({ userId }: { userId: string }) {
   const router = useRouter();
   const { toast } = useToast();
   const [status, setStatus] = useState<UserStatus | 'not-found' | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     const fetchStatus = () => {
-      let newStatus = getUserStatus(userId);
-      
-      // If user is not in local storage (e.g., accessed from email link), use query params as fallback
-      if (!newStatus) {
-        const name = searchParams.get('name');
-        const queueNumber = searchParams.get('queueNumber');
-        const department = searchParams.get('department') as Department;
-        const counter = searchParams.get('counter');
-        const estimatedWaitTime = searchParams.get('estimatedWaitTime');
-        const confidence = searchParams.get('confidence');
-
-        if (name && queueNumber && department && counter) {
-            newStatus = {
-                userName: name,
-                position: parseInt(queueNumber, 10), // The queue number from URL is the position
-                department: department,
-                counter: counter,
-                estimatedWaitTime: estimatedWaitTime ? parseInt(estimatedWaitTime, 10) : 10,
-                confidence: confidence || 'medium',
-                totalInQueue: 1, // Defaulting
-                currentlyServing: null, // Defaulting
-            };
-        }
-      }
-
-      setStatus(newStatus || 'not-found');
+        startTransition(async () => {
+            const newStatus = await getUserStatus(userId);
+            setStatus(newStatus || 'not-found');
+        });
     };
 
     fetchStatus(); // Initial fetch
     
-    // Poll for changes, as another tab (e.g., admin) could update the state
-    const interval = setInterval(fetchStatus, 2000); 
+    // Poll for changes
+    const interval = setInterval(fetchStatus, 5000); 
 
     return () => clearInterval(interval);
-  }, [userId, getUserStatus, searchParams]);
+  }, [userId]);
   
-  const handleCancel = () => {
+  const handleCancel = async () => {
     setIsCancelling(true);
-    removeUser(userId);
-    toast({
-      title: "You've left the queue.",
-      description: "Your spot has been successfully cancelled.",
-    });
-    // The useEffect will update the status to 'not-found' automatically
-    // No need to set it here, as it would cause a flash of content.
-    // The router.push will happen after the dialog closes.
+    const result = await cancelUserTicket(userId);
+    setIsCancelling(false);
+
+    if (result.success) {
+        toast({
+            title: "You've left the queue.",
+            description: "Your spot has been successfully cancelled.",
+        });
+        // The useEffect will update the status to 'not-found' automatically
+    } else {
+        toast({
+            variant: 'destructive',
+            title: "Cancellation Failed",
+            description: "Could not cancel your spot. Please try again.",
+        });
+    }
   }
 
-  if (status === null) {
+  if (status === null || isPending) {
     return (
       <Card className="shadow-lg animate-pulse">
         <CardHeader>
@@ -137,7 +122,7 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
       </CardHeader>
       <CardContent className="text-center space-y-6 py-10">
         <div>
-          <p className="text-sm text-muted-foreground font-medium">YOUR NUMBER AT {status.counter.toUpperCase()}</p>
+          <p className="text-sm text-muted-foreground font-medium">YOUR POSITION AT {status.counter.toUpperCase()}</p>
           <p className="text-8xl font-bold text-primary transition-all duration-300">{status.position}</p>
           <p className="text-muted-foreground">out of {status.totalInQueue} people at this counter</p>
         </div>
@@ -189,13 +174,5 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
         </AlertDialog>
     </div>
     </>
-  );
-}
-
-export function QueueStatusCard({ userId }: { userId: string }) {
-  return (
-    <Suspense fallback={<Skeleton className="h-[400px] w-full" />}>
-      <QueueStatusCardContent userId={userId} />
-    </Suspense>
   );
 }
