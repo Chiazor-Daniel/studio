@@ -1,8 +1,10 @@
+
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition, useEffect, useRef } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -40,7 +42,7 @@ const initialState: JoinQueueFormState = {
 
 export function JoinQueueForm() {
   const router = useRouter();
-  const [state, formAction] = useFormState(joinQueueAction, initialState);
+  const [state, formAction] = useActionState(joinQueueAction, initialState);
   const formRef = useRef<HTMLFormElement>(null);
 
   const [selectedDepartment, setSelectedDepartment] = useState<Department | ''>('');
