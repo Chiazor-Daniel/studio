@@ -1,3 +1,4 @@
+
 // This approach is for demonstration purposes only.
 // In a production app, you should use environment variables instead of hardcoding credentials.
 import { MongoClient, ServerApiVersion } from 'mongodb';
@@ -31,5 +32,5 @@ if (process.env.NODE_ENV === 'development') {
 // separate module, the client can be shared across functions.
 export default clientPromise;
 
-export const dbName = 'queueNowDB';
+export const dbName = 'queue';
 export const ticketsCollectionName = 'tickets';
