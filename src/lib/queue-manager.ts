@@ -15,8 +15,7 @@ const getInitialState = (): QueueState => {
       counters: counters[dept].reduce((counterAcc, counterName) => {
         counterAcc[counterName] = {
             queue: [],
-            serving: { user: null, startedAt: null },
-            lastQueueNumber: 0,
+            serving: { user: null, startedAt: null, queueNumber: null },
         };
         return counterAcc;
       }, {} as Record<string, CounterState>),
@@ -31,7 +30,7 @@ export const getQueueState = (): QueueState => {
   return getInitialState();
 };
 
-export const addUserToQueue = (user: Omit<QueueUser, 'id' | 'queueNumber' | 'joinedAt'>): QueueUser => {
+export const addUserToQueue = (user: Omit<QueueUser, 'id' | 'joinedAt'>): QueueUser => {
   console.warn("DEPRECATED: addUserToQueue is called from server-side. Use client-side useQueue hook instead.");
   throw new Error("This function is deprecated. Use the client-side `useQueue` hook.");
 };

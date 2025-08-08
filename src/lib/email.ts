@@ -11,7 +11,7 @@ export async function sendQueueConfirmationEmail(user: QueueUser, statusLink: st
   // Enhance status link with query parameters for a better demo experience
   const params = new URLSearchParams({
     name: user.name,
-    queueNumber: user.queueNumber.toString(),
+    queueNumber: (user.queueNumber || '').toString(),
     department: user.department,
     counter: user.counter,
     estimatedWaitTime: user.estimatedWaitTime?.toString() || '10',

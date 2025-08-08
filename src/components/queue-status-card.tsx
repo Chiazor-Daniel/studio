@@ -46,12 +46,11 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
         if (name && queueNumber && department && counter) {
             newStatus = {
                 userName: name,
-                queueNumber: parseInt(queueNumber, 10),
+                position: parseInt(queueNumber, 10), // The queue number from URL is the position
                 department: department,
                 counter: counter,
                 estimatedWaitTime: estimatedWaitTime ? parseInt(estimatedWaitTime, 10) : 10,
                 confidence: confidence || 'medium',
-                position: 1, // Defaulting as we don't know the real position
                 totalInQueue: 1, // Defaulting
                 currentlyServing: null, // Defaulting
             };
@@ -138,7 +137,7 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
       </CardHeader>
       <CardContent className="text-center space-y-6 py-10">
         <div>
-          <p className="text-sm text-muted-foreground font-medium">YOUR POSITION AT {status.counter.toUpperCase()}</p>
+          <p className="text-sm text-muted-foreground font-medium">YOUR NUMBER AT {status.counter.toUpperCase()}</p>
           <p className="text-8xl font-bold text-primary transition-all duration-300">{status.position}</p>
           <p className="text-muted-foreground">out of {status.totalInQueue} people at this counter</p>
         </div>
@@ -158,8 +157,8 @@ function QueueStatusCardContent({ userId }: { userId: string }) {
           <p className="text-2xl font-bold">{status.currentlyServing ?? '---'}</p>
         </div>
         <div>
-          <p className="text-sm text-muted-foreground font-medium flex items-center justify-center gap-2"><Hash /> Your Number</p>
-          <p className="text-2xl font-bold">{status.queueNumber}</p>
+          <p className="text-sm text-muted-foreground font-medium flex items-center justify-center gap-2"><Hash /> Total in Queue</p>
+          <p className="text-2xl font-bold">{status.totalInQueue}</p>
         </div>
       </CardFooter>
     </Card>

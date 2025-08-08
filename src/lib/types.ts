@@ -14,7 +14,6 @@ export type QueueUser = {
   contact: string;
   department: Department;
   counter: string;
-  queueNumber: number;
   joinedAt: Date | string; // Allow string for serialization
   estimatedWaitTime?: number;
   confidence?: string;
@@ -23,12 +22,12 @@ export type QueueUser = {
 export type ServingInfo = {
   user: QueueUser | null;
   startedAt: Date | string | null; // Allow string for serialization
+  queueNumber: number | null;
 };
 
 export type CounterState = {
     queue: QueueUser[];
     serving: ServingInfo;
-    lastQueueNumber: number;
 }
 
 export type DepartmentState = {
@@ -43,7 +42,6 @@ export type UserStatus = {
   confidence?: string;
   department: Department;
   counter: string;
-  queueNumber: number;
   currentlyServing: number | null;
   totalInQueue: number;
   userName: string;

@@ -14,8 +14,7 @@ const getInitialState = (): QueueState => {
       counters: counters[dept].reduce((counterAcc, counterName) => {
         counterAcc[counterName] = {
           queue: [],
-          serving: { user: null, startedAt: null },
-          lastQueueNumber: 0,
+          serving: { user: null, startedAt: null, queueNumber: null },
         };
         return counterAcc;
       }, {} as Record<string, CounterState>),
@@ -96,33 +95,33 @@ export const useQueue = () => {
     }
   };
 
-  const addUserToQueue = useCallback((user: Omit<QueueUser, 'id' | 'queueNumber' | 'joinedAt'>): QueueUser => {
+  const addUserToQueue = useCallback((user: Omit<QueueUser, 'id' |'joinedAt'>): QueueUser => {
     if (!queueState) throw new Error("Queue state not initialized");
 
     const newState = JSON.parse(JSON.stringify(queueState)); // Deep copy
     const { department, counter } = user;
     const counterState = newState[department].counters[counter];
     
-    counterState.lastQueueNumber += 1;
-    const newQueueNumber = counterState.lastQueueNumber;
-    
     const newUser: QueueUser = {
       ...user,
       id: crypto.randomUUID(),
-      queueNumber: newQueueNumber,
       joinedAt: new Date(),
     };
   
     counterState.queue.push(newUser);
+
+    const position = counterState.queue.length; // Their position will be the new length
+    
     updateState(newState);
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
     const statusLink = `${appUrl}/queue/${newUser.id}`;
     
-    // Don't await this, let it run in the background
-    sendQueueConfirmationEmail(newUser, statusLink);
+    // Pass the position (as queueNumber) for the email and initial status page view
+    const emailUserPayload = { ...newUser, queueNumber: position };
+    sendQueueConfirmationEmail(emailUserPayload, statusLink);
 
-    return newUser;
+    return emailUserPayload; // Return user with queueNumber for the success modal
   }, [queueState]);
 
   const callNextUser = useCallback((department: Department, counter: string): QueueUser | null => {
@@ -130,19 +129,22 @@ export const useQueue = () => {
 
     const newState = JSON.parse(JSON.stringify(queueState)); // Deep copy
     const counterState = newState[department].counters[counter];
+    
+    const lastServingNumber = counterState.serving.queueNumber || 0;
     const nextUser = counterState.queue.shift();
   
     if (nextUser) {
       counterState.serving = {
         user: nextUser,
         startedAt: new Date(),
+        queueNumber: lastServingNumber + 1, // This can be a simple ticket number now
       };
     } else {
-      counterState.serving = { user: null, startedAt: null };
+      counterState.serving = { user: null, startedAt: null, queueNumber: counterState.serving.queueNumber };
     }
 
     updateState(newState);
-    return nextUser || null;
+    return nextUser ? { ...nextUser, queueNumber: counterState.serving.queueNumber! } : null;
   }, [queueState]);
 
   const removeUser = useCallback((userId: string): QueueUser | null => {
@@ -175,15 +177,14 @@ export const useQueue = () => {
 
             if (userIndex > -1) {
                 const user = counterState.queue[userIndex];
-                const currentlyServing = counterState.serving.user;
+                const currentlyServing = counterState.serving;
                 
                 return {
-                    position: userIndex + 1,
+                    position: userIndex + 1, // Position is index + 1
                     estimatedWaitTime: user.estimatedWaitTime,
                     confidence: user.confidence,
                     department: user.department,
                     counter: user.counter,
-                    queueNumber: user.queueNumber,
                     currentlyServing: currentlyServing?.queueNumber ?? null,
                     totalInQueue: counterState.queue.length,
                     userName: user.name,

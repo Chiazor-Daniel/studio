@@ -84,7 +84,7 @@ export function AdminDashboard() {
                 if (!counterState) return null;
                 
                 const queue = counterState.queue;
-                const servingUser = counterState.serving.user;
+                const serving = counterState.serving;
 
                 return (
                   <AccordionItem value={counterName} key={counterName}>
@@ -96,7 +96,7 @@ export function AdminDashboard() {
                         <CardHeader className="flex flex-row items-center justify-between pt-0">
                           <div>
                             <p className="text-sm text-muted-foreground">
-                              Now serving: #{servingUser?.queueNumber ?? 'N/A'} - {servingUser?.name ?? 'Nobody'}
+                              Now serving: #{serving?.queueNumber ?? 'N/A'} - {serving?.user?.name ?? 'Nobody'}
                             </p>
                           </div>
                         </CardHeader>
@@ -104,7 +104,7 @@ export function AdminDashboard() {
                           <Table>
                             <TableHeader>
                               <TableRow>
-                                <TableHead className="w-[80px]">#</TableHead>
+                                <TableHead className="w-[80px]">Position</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Contact</TableHead>
                                 <TableHead>Wait Time</TableHead>
@@ -112,9 +112,9 @@ export function AdminDashboard() {
                             </TableHeader>
                             <TableBody>
                               {queue.length > 0 ? (
-                                queue.map((user) => (
+                                queue.map((user, index) => (
                                   <TableRow key={user.id}>
-                                    <TableCell className="font-bold text-lg">{user.queueNumber}</TableCell>
+                                    <TableCell className="font-bold text-lg">{index + 1}</TableCell>
                                     <TableCell>{user.name}</TableCell>
                                     <TableCell className="text-muted-foreground">{user.contact}</TableCell>
                                     <TableCell className="text-muted-foreground">
