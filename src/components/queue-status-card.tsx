@@ -22,6 +22,32 @@ import {
 } from "@/components/ui/alert-dialog"
 import { getUserStatus, cancelUserTicket } from '@/app/actions';
 
+function StatusSkeleton() {
+    return (
+        <Card className="shadow-lg">
+            <CardHeader>
+                <Skeleton className="h-8 w-3/4 mx-auto" />
+                <Skeleton className="h-4 w-1/2 mx-auto mt-2" />
+            </CardHeader>
+            <CardContent className="text-center space-y-8 py-10">
+                <Skeleton className="h-24 w-24 rounded-full mx-auto" />
+                <Skeleton className="h-6 w-48 mx-auto" />
+            </CardContent>
+            <CardFooter className="grid grid-cols-2 gap-4 text-center">
+                <div>
+                    <Skeleton className="h-6 w-20 mx-auto" />
+                    <Skeleton className="h-4 w-24 mx-auto mt-2" />
+                </div>
+                <div>
+                    <Skeleton className="h-6 w-20 mx-auto" />
+                    <Skeleton className="h-4 w-24 mx-auto mt-2" />
+                </div>
+            </CardFooter>
+        </Card>
+    )
+}
+
+
 export function QueueStatusCard({ userId }: { userId: string }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -37,13 +63,15 @@ export function QueueStatusCard({ userId }: { userId: string }) {
         });
     };
 
-    fetchStatus(); // Initial fetch
+    if (status === null) {
+       fetchStatus(); // Initial fetch
+    }
     
     // Poll for changes
     const interval = setInterval(fetchStatus, 5000); 
 
     return () => clearInterval(interval);
-  }, [userId]);
+  }, [userId, status]);
   
   const handleCancel = async () => {
     setIsCancelling(true);
@@ -65,29 +93,8 @@ export function QueueStatusCard({ userId }: { userId: string }) {
     }
   }
 
-  if (status === null || isPending) {
-    return (
-      <Card className="shadow-lg animate-pulse">
-        <CardHeader>
-          <Skeleton className="h-8 w-3/4 mx-auto" />
-          <Skeleton className="h-4 w-1/2 mx-auto mt-2" />
-        </CardHeader>
-        <CardContent className="text-center space-y-8 py-10">
-            <Skeleton className="h-24 w-24 rounded-full mx-auto" />
-            <Skeleton className="h-6 w-48 mx-auto" />
-        </CardContent>
-        <CardFooter className="grid grid-cols-2 gap-4 text-center">
-            <div>
-                <Skeleton className="h-6 w-20 mx-auto" />
-                <Skeleton className="h-4 w-24 mx-auto mt-2" />
-            </div>
-            <div>
-                <Skeleton className="h-6 w-20 mx-auto" />
-                <Skeleton className="h-4 w-24 mx-auto mt-2" />
-            </div>
-        </CardFooter>
-      </Card>
-    );
+  if (status === null) {
+    return <StatusSkeleton />;
   }
 
   if (status === 'not-found') {
